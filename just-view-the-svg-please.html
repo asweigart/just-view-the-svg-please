@@ -319,7 +319,7 @@
     #gestureLayer.dragging { cursor: grabbing; }
 
     .zoom-readout {
-      width: 4.8rem;
+      width: 3.84rem;
       min-height: 2.35rem;
       padding: 0.35rem 0.45rem;
       border: 1px solid var(--border);
@@ -425,6 +425,27 @@
       border: 0 !important;
     }
 
+    .render-status-row {
+      min-height: 1.35rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .render-status-row .status-line { min-height: 0; }
+    .export-scale-wrap { display: inline-flex; align-items: center; gap: 0.3rem; }
+    .export-scale-wrap[hidden] { display: none; }
+    .export-scale-input {
+      width: 3.35rem;
+      padding: 0.08rem 0.28rem;
+      min-height: 1.35rem;
+      height: 1.35rem;
+      font-size: 0.84rem;
+      line-height: 1.2;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
     @media (max-width: 820px) {
       .app-shell {
         height: auto;
@@ -475,7 +496,7 @@
           <input id="filenameInput" class="filename-input" type="text" autocomplete="off" spellcheck="false" placeholder="Name" aria-label="Name" data-i18n-placeholder="namePlaceholder" data-i18n-aria-label="nameLabel">
           <label class="visually-hidden" for="demoSelect" data-i18n="demoLabel">Load a demo SVG</label>
           <select id="demoSelect" aria-label="Load a demo SVG" data-i18n-aria-label="demoLabel">
-            <option value="" selected data-i18n="demo">Demo</option>
+            <option value="" selected data-i18n="demo">Examples</option>
             <option value="basic-shapes" data-i18n="demoBasicShapes">Basic shapes</option>
             <option value="paths-strokes" data-i18n="demoPathsStrokes">Paths &amp; strokes</option>
             <option value="gradients-text" data-i18n="demoGradientsText">Gradients &amp; text</option>
@@ -490,7 +511,13 @@
             <pre id="lineNumbers" aria-hidden="true">1</pre>
             <textarea id="svgInput" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="parseStatus"></textarea>
           </div>
-          <div id="parseStatus" class="status-line" role="status" aria-live="polite"></div>
+          <div class="render-status-row">
+            <div id="parseStatus" class="status-line" role="status" aria-live="polite"></div>
+            <label id="exportScaleWrap" class="export-scale-wrap status-line" hidden>
+              <span>Export Scale:</span>
+              <input id="exportScaleInput" class="export-scale-input" type="text" inputmode="decimal" value="100%" aria-label="Export Scale">
+            </label>
+          </div>
         </div>
       </section>
 
@@ -1354,8 +1381,8 @@
         "tidy": "Tidy",
         "nameLabel": "Name",
         "namePlaceholder": "Name",
-        "demo": "Demo",
-        "demoLabel": "Load a demo SVG",
+        "demo": "Examples",
+        "demoLabel": "Load an example SVG",
         "demoBasicShapes": "Basic shapes",
         "demoPathsStrokes": "Paths & strokes",
         "demoGradientsText": "Gradients & text",
@@ -1372,7 +1399,7 @@
         "creditPrefix": "Generated and human-reviewed by",
         "creditBody": "This app works offline and you own it forever. No ads. No registration. No subscriptions. No trackers. Just right-click and save the .html page.",
         "dropSvg": "Drop SVG file",
-        "valid": "Valid SVG",
+        "valid": "Rendered",
         "invalid": "Invalid SVG",
         "empty": "Paste SVG text to preview it.",
         "rootError": "The document root must be an <svg> element.",
@@ -2969,6 +2996,8 @@
       svgInput: document.querySelector('#svgInput'),
       lineNumbers: document.querySelector('#lineNumbers'),
       parseStatus: document.querySelector('#parseStatus'),
+      exportScaleWrap: document.querySelector('#exportScaleWrap'),
+      exportScaleInput: document.querySelector('#exportScaleInput'),
       previewWrap: document.querySelector('#previewWrap'),
       previewFrame: document.querySelector('#previewFrame'),
       gestureLayer: document.querySelector('#gestureLayer'),
@@ -3148,8 +3177,14 @@
     };
 
     function demoSource(key) {
-      if (key === 'ghostscript-tiger') return document.querySelector('#defaultSvgSource').textContent.trim();
-      return DEMOS[key] || '';
+      let source = '';
+      if (key === 'ghostscript-tiger') {
+        source = document.querySelector('#defaultSvgSource').textContent.trim();
+      } else {
+        source = DEMOS[key] || '';
+      }
+      if (!source) return '';
+      return source.endsWith('\n') ? source : `${source}\n`;
     }
 
     function showToast(message) {
@@ -3178,6 +3213,7 @@
 
     function updateStatusForCurrentSvg() {
       if (!elements.svgInput.value.trim()) {
+        setRenderValidity(Boolean(state.sanitizedSvg));
         setStatus(t('empty'));
         return;
       }
@@ -3296,35 +3332,53 @@
       state.renderTimer = window.setTimeout(() => renderSvg({ fit }), 100);
     }
 
+    function exportScaleFactor() {
+      const parsed = Number.parseFloat(elements.exportScaleInput.value.replace('%', '').trim());
+      const percent = Number.isFinite(parsed) && parsed > 0 ? Math.min(800, Math.max(1, parsed)) : 100;
+      return percent / 100;
+    }
+
+    function commitExportScale() {
+      const factor = exportScaleFactor();
+      elements.exportScaleInput.value = `${Math.round(factor * 100)}%`;
+    }
+
+    function setRenderValidity(valid) {
+      // SVG is the raw editor source, so it remains downloadable even when blank or invalid.
+      elements.downloadSvgButton.disabled = false;
+      elements.downloadPngButton.disabled = !valid;
+      elements.downloadWebpButton.disabled = !valid;
+      elements.fitButton.disabled = !valid;
+      elements.zoomOutButton.disabled = !valid;
+      elements.zoomInButton.disabled = !valid;
+      elements.exportScaleWrap.hidden = !valid;
+    }
+
     function renderSvg({ fit = false } = {}) {
       const source = elements.svgInput.value.trim();
       if (!source) {
-        state.parsedSvg = null;
-        state.sanitizedSvg = '';
-        state.intrinsicWidth = 0;
-        state.intrinsicHeight = 0;
+        // Preserve the most recent valid preview/render for bitmap exports.
+        // Only collapse the preview when the app has never rendered a valid SVG.
+        if (!state.sanitizedSvg) {
+          state.parsedSvg = null;
+          state.intrinsicWidth = 0;
+          state.intrinsicHeight = 0;
+          elements.previewFrame.srcdoc =
+            '<!doctype html><html><head><style>html,body{margin:0;padding:0;background:transparent}</style></head><body></body></html>';
+          elements.previewFrame.style.width = '0px';
+          elements.previewFrame.style.height = '0px';
+        }
 
-        // Empty source must leave only the checkerboard visible. Keep the iframe
-        // available for subsequent renders, but collapse its canvas completely.
-        elements.previewFrame.srcdoc =
-          '<!doctype html><html><head><style>html,body{margin:0;padding:0;background:transparent}</style></head><body></body></html>';
-        elements.previewFrame.style.width = '0px';
-        elements.previewFrame.style.height = '0px';
-
+        setRenderValidity(Boolean(state.sanitizedSvg));
         setStatus(t('empty'));
         return;
       }
 
       const parsed = parseSvg(source);
       if (!parsed.ok) {
-        state.parsedSvg = null;
-        state.sanitizedSvg = '';
-        state.intrinsicWidth = 0;
-        state.intrinsicHeight = 0;
-        elements.previewFrame.srcdoc =
-          '<!doctype html><html><head><style>html,body{margin:0;padding:0;background:transparent}</style></head><body></body></html>';
-        elements.previewFrame.style.width = '0px';
-        elements.previewFrame.style.height = '0px';
+        // Keep the last valid parsed/sanitized SVG and preview. If no valid render
+        // has ever existed, the preview is already blank.
+        setRenderValidity(Boolean(state.sanitizedSvg));
         setStatus(t('invalid'), parsed.detail, true);
         return;
       }
@@ -3343,6 +3397,7 @@
       elements.previewFrame.style.height = `${intrinsic.height}px`;
       elements.previewFrame.srcdoc = buildPreviewDocument(serialized);
       setStatus(t('valid'), `${formatDimension(intrinsic.width)} × ${formatDimension(intrinsic.height)} px`);
+      setRenderValidity(true);
 
       if (fit || state.firstRender) {
         state.firstRender = false;
@@ -3442,9 +3497,21 @@
         );
         if (preserve || hasMeaningfulText) return `${indent}${serializer.serializeToString(element)}`;
 
-        const meaningfulChildren = children.filter((child) => child.nodeType !== Node.TEXT_NODE || child.textContent.trim() !== '');
         const lines = [indent + serializeOpeningTag(element)];
-        for (const child of meaningfulChildren) lines.push(serialize(child, depth + 1, preserve));
+
+        for (const child of children) {
+          if (child.nodeType === Node.TEXT_NODE && child.textContent.trim() === '') {
+            // DOMParser keeps formatting whitespace. One newline is ordinary
+            // indentation; every additional newline represents a user-authored
+            // blank line that Tidy should preserve.
+            const newlineCount = (child.textContent.match(/\n/g) || []).length;
+            for (let i = 1; i < newlineCount; i++) lines.push('');
+            continue;
+          }
+
+          lines.push(serialize(child, depth + 1, preserve));
+        }
+
         lines.push(`${indent}</${element.tagName}>`);
         return lines.join('\n');
       }
@@ -3470,7 +3537,7 @@
         setStatus(t('invalid'), parsed.detail, true);
         return;
       }
-      elements.svgInput.value = prettyPrintSvg(parsed.doc);
+      elements.svgInput.value = `${prettyPrintSvg(parsed.doc).replace(/\n*$/, '')}\n`;
       updateLineNumbers();
       scheduleRender();
       showToast(t('formatted'));
@@ -3530,8 +3597,9 @@
     async function exportBitmap(format) {
       if (!state.sanitizedSvg) throw new Error(t('noValidSvg'));
 
-      const width = Math.max(1, Math.round(state.intrinsicWidth));
-      const height = Math.max(1, Math.round(state.intrinsicHeight));
+      const exportScale = 2 * exportScaleFactor();
+      const width = Math.max(1, Math.round(state.intrinsicWidth * exportScale));
+      const height = Math.max(1, Math.round(state.intrinsicHeight * exportScale));
       const sourceBlob = new Blob([state.sanitizedSvg], { type: 'image/svg+xml;charset=utf-8' });
       const sourceUrl = URL.createObjectURL(sourceBlob);
 
@@ -3559,15 +3627,15 @@
     }
 
     async function exportCurrent(format) {
-      const parsed = parseSvg(elements.svgInput.value.trim());
-      if (!parsed.ok) {
-        setStatus(t('invalid'), parsed.detail, true);
+      if (format === 'svg') {
+        // Raw SVG download always mirrors the editor text, valid or not.
+        exportSvg();
         return;
       }
 
       try {
-        if (format === 'svg') exportSvg();
-        else await exportBitmap(format);
+        // Bitmap exports use the last successfully rendered SVG.
+        await exportBitmap(format);
       } catch (error) {
         showToast(error?.message || t('exportError'));
       }
@@ -3641,6 +3709,15 @@
       }
     });
     elements.fitButton.addEventListener('click', fitView);
+    elements.exportScaleInput.addEventListener('change', commitExportScale);
+    elements.exportScaleInput.addEventListener('blur', commitExportScale);
+    elements.exportScaleInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        commitExportScale();
+        elements.exportScaleInput.select();
+      }
+    });
     elements.downloadSvgButton.addEventListener('click', () => exportCurrent('svg'));
     elements.downloadPngButton.addEventListener('click', () => exportCurrent('png'));
     elements.downloadWebpButton.addEventListener('click', () => exportCurrent('webp'));
