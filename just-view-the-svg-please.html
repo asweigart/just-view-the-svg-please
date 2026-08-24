@@ -331,6 +331,17 @@
       font-size: 0.86rem;
     }
 
+    .filename-input {
+      width: clamp(8rem, 18vw, 14rem);
+      min-width: 7rem;
+      min-height: 2.35rem;
+      padding: 0.35rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 0.55rem;
+      background: var(--panel);
+      color: var(--text);
+    }
+
     .drop-overlay {
       position: fixed;
       inset: 0;
@@ -451,10 +462,7 @@
         <input id="fileInput" class="visually-hidden" type="file" accept=".svg,image/svg+xml">
         <button id="shareButton" type="button" data-i18n="share">Share</button>
         <button id="aboutButton" type="button" data-i18n="about">About</button>
-        <label class="language-control" for="languageSelect">
-          <span data-i18n="language">Language</span>
-          <select id="languageSelect" aria-label="Language" data-i18n-aria-label="language"></select>
-        </label>
+        <select id="languageSelect" class="language-control" aria-label="Language" data-i18n-aria-label="language"></select>
       </div>
     </header>
 
@@ -463,6 +471,17 @@
         <div class="panel-header">
           <button id="openButton" type="button" data-i18n="openSvg">Open SVG</button>
           <button id="formatButton" type="button" data-i18n="tidy">Tidy</button>
+          <label class="visually-hidden" for="filenameInput" data-i18n="nameLabel">Name</label>
+          <input id="filenameInput" class="filename-input" type="text" autocomplete="off" spellcheck="false" placeholder="Name" aria-label="Name" data-i18n-placeholder="namePlaceholder" data-i18n-aria-label="nameLabel">
+          <label class="visually-hidden" for="demoSelect" data-i18n="demoLabel">Load a demo SVG</label>
+          <select id="demoSelect" aria-label="Load a demo SVG" data-i18n-aria-label="demoLabel">
+            <option value="" selected data-i18n="demo">Demo</option>
+            <option value="basic-shapes" data-i18n="demoBasicShapes">Basic shapes</option>
+            <option value="paths-strokes" data-i18n="demoPathsStrokes">Paths &amp; strokes</option>
+            <option value="gradients-text" data-i18n="demoGradientsText">Gradients &amp; text</option>
+            <option value="transforms-reuse" data-i18n="demoTransformsReuse">Transforms &amp; reuse</option>
+            <option value="ghostscript-tiger" data-i18n="demoGhostscriptTiger">Ghostscript Tiger</option>
+          </select>
         </div>
 
         <div class="editor-wrap">
@@ -1254,7 +1273,7 @@
     'use strict';
 
     // One version constant drives every visible version string in the application.
-    const APP_VERSION = '0.3.2';
+    const APP_VERSION = '0.4.0';
     const SHARE_URL = 'https://inventwithpython/justthesvgplease/just-the-svg-please.html';
     const FILE_BASENAME = 'just-view-the-svg-please';
 
@@ -1333,6 +1352,15 @@
         "about": "About",
         "language": "Language",
         "tidy": "Tidy",
+        "nameLabel": "Name",
+        "namePlaceholder": "Name",
+        "demo": "Demo",
+        "demoLabel": "Load a demo SVG",
+        "demoBasicShapes": "Basic shapes",
+        "demoPathsStrokes": "Paths & strokes",
+        "demoGradientsText": "Gradients & text",
+        "demoTransformsReuse": "Transforms & reuse",
+        "demoGhostscriptTiger": "Ghostscript Tiger",
         "svgInputLabel": "SVG text",
         "fit": "Fit",
         "zoomPercent": "Zoom percentage",
@@ -2935,6 +2963,8 @@
       aboutDialog: document.querySelector('#aboutDialog'),
       aboutCloseButton: document.querySelector('#aboutCloseButton'),
       languageSelect: document.querySelector('#languageSelect'),
+      filenameInput: document.querySelector('#filenameInput'),
+      demoSelect: document.querySelector('#demoSelect'),
       formatButton: document.querySelector('#formatButton'),
       svgInput: document.querySelector('#svgInput'),
       lineNumbers: document.querySelector('#lineNumbers'),
@@ -3021,9 +3051,105 @@
         const key = node.dataset.i18nTitle;
         if (t(key)) node.setAttribute('title', t(key));
       });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach((node) => {
+        const key = node.dataset.i18nPlaceholder;
+        if (t(key)) node.setAttribute('placeholder', t(key));
+      });
 
       elements.languageSelect.value = state.locale;
       updateStatusForCurrentSvg();
+    }
+
+    const DEMOS = {
+      'basic-shapes': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <rect width="640" height="360" fill="#f8fafc"/>
+  <text x="32" y="42" font-family="system-ui, sans-serif" font-size="24" font-weight="700" fill="#172033">Basic SVG Shapes</text>
+
+  <!-- Rectangles can have rounded corners. -->
+  <rect x="40" y="80" width="120" height="90" rx="18" fill="#5b8def"/>
+
+  <!-- Circles and ellipses are positioned by their center point. -->
+  <circle cx="240" cy="125" r="48" fill="#f59e0b"/>
+  <ellipse cx="370" cy="125" rx="72" ry="42" fill="#34a853"/>
+
+  <!-- Lines and polygons use stroke/fill styling just like paths. -->
+  <line x1="475" y1="80" x2="590" y2="165" stroke="#dc2626" stroke-width="10" stroke-linecap="round"/>
+  <polygon points="100,215 145,305 55,305" fill="#8b5cf6"/>
+  <polyline points="200,300 245,220 290,300 335,220 380,300" fill="none" stroke="#0f766e" stroke-width="8" stroke-linejoin="round"/>
+
+  <text x="430" y="260" font-family="system-ui, sans-serif" font-size="18" fill="#172033">Text is SVG geometry too.</text>
+  <text x="430" y="292" font-family="system-ui, sans-serif" font-size="15" fill="#64748b">Edit any value and watch it render.</text>
+</svg>`,
+
+      'paths-strokes': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <rect width="640" height="360" fill="#fffdf7"/>
+  <text x="32" y="42" font-family="system-ui, sans-serif" font-size="24" font-weight="700" fill="#292524">Paths &amp; Strokes</text>
+
+  <!-- M moves, C draws a cubic Bézier curve, and S continues it smoothly. -->
+  <path d="M 55 185 C 125 60, 205 60, 275 185 S 425 310, 585 145"
+        fill="none" stroke="#2563eb" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- The same path language can define filled shapes. -->
+  <path d="M 110 265 L 165 190 L 220 265 Z" fill="#f97316" stroke="#7c2d12" stroke-width="4"/>
+
+  <!-- Dash patterns are controlled by stroke-dasharray. -->
+  <path d="M 300 255 Q 390 175, 560 255" fill="none" stroke="#16a34a" stroke-width="7" stroke-dasharray="14 10"/>
+
+  <circle cx="55" cy="185" r="7" fill="#111827"/>
+  <circle cx="585" cy="145" r="7" fill="#111827"/>
+</svg>`,
+
+      'gradients-text': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <defs>
+    <linearGradient id="sunset" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fb7185"/>
+      <stop offset="55%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fde68a"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="35%" stop-color="#93c5fd"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="640" height="360" fill="#111827"/>
+  <rect x="36" y="42" width="355" height="276" rx="28" fill="url(#sunset)"/>
+  <circle cx="505" cy="160" r="92" fill="url(#glow)"/>
+
+  <text x="64" y="128" font-family="Georgia, serif" font-size="42" font-weight="700" fill="#1f2937">Gradients</text>
+  <text x="64" y="176" font-family="system-ui, sans-serif" font-size="21" fill="#374151">live in &lt;defs&gt; and are reused by id.</text>
+  <text x="64" y="252" font-family="system-ui, sans-serif" font-size="18" fill="#4b5563">SVG text remains selectable and scalable.</text>
+</svg>`,
+
+      'transforms-reuse': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <defs>
+    <g id="spark">
+      <path d="M 0 -34 L 9 -9 L 34 0 L 9 9 L 0 34 L -9 9 L -34 0 L -9 -9 Z" fill="#facc15" stroke="#92400e" stroke-width="3"/>
+      <circle r="8" fill="#fff7ed"/>
+    </g>
+  </defs>
+
+  <rect width="640" height="360" fill="#eef2ff"/>
+  <text x="32" y="42" font-family="system-ui, sans-serif" font-size="24" font-weight="700" fill="#312e81">Transforms &amp; Reuse</text>
+
+  <!-- Define geometry once, then place it repeatedly with <use>. -->
+  <use href="#spark" transform="translate(120 135)"/>
+  <use href="#spark" transform="translate(260 135) rotate(25) scale(1.35)"/>
+  <use href="#spark" transform="translate(430 135) rotate(50) scale(.8)"/>
+  <use href="#spark" transform="translate(545 135) rotate(75) scale(1.1)"/>
+
+  <!-- Transform a whole group of elements together. -->
+  <g transform="translate(120 275) rotate(-6)">
+    <rect x="0" y="-30" width="400" height="60" rx="30" fill="#4f46e5"/>
+    <text x="200" y="8" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" font-weight="700" fill="white">Groups keep related geometry together</text>
+  </g>
+</svg>`
+    };
+
+    function demoSource(key) {
+      if (key === 'ghostscript-tiger') return document.querySelector('#defaultSvgSource').textContent.trim();
+      return DEMOS[key] || '';
     }
 
     function showToast(message) {
@@ -3175,7 +3301,16 @@
       if (!source) {
         state.parsedSvg = null;
         state.sanitizedSvg = '';
-        elements.previewFrame.removeAttribute('srcdoc');
+        state.intrinsicWidth = 0;
+        state.intrinsicHeight = 0;
+
+        // Empty source must leave only the checkerboard visible. Keep the iframe
+        // available for subsequent renders, but collapse its canvas completely.
+        elements.previewFrame.srcdoc =
+          '<!doctype html><html><head><style>html,body{margin:0;padding:0;background:transparent}</style></head><body></body></html>';
+        elements.previewFrame.style.width = '0px';
+        elements.previewFrame.style.height = '0px';
+
         setStatus(t('empty'));
         return;
       }
@@ -3184,7 +3319,12 @@
       if (!parsed.ok) {
         state.parsedSvg = null;
         state.sanitizedSvg = '';
-        elements.previewFrame.removeAttribute('srcdoc');
+        state.intrinsicWidth = 0;
+        state.intrinsicHeight = 0;
+        elements.previewFrame.srcdoc =
+          '<!doctype html><html><head><style>html,body{margin:0;padding:0;background:transparent}</style></head><body></body></html>';
+        elements.previewFrame.style.width = '0px';
+        elements.previewFrame.style.height = '0px';
         setStatus(t('invalid'), parsed.detail, true);
         return;
       }
@@ -3345,11 +3485,30 @@
       }
       try {
         elements.svgInput.value = await file.text();
+        elements.filenameInput.value = file.name.replace(/\.svg$/i, '');
         updateLineNumbers();
         renderSvg({ fit: true });
       } catch {
         showToast(t('fileError'));
       }
+    }
+
+    function filenameBase() {
+      let name = elements.filenameInput.value;
+
+      // Drop characters forbidden by common desktop filesystems (especially Windows),
+      // plus control characters. Keep Unicode and ordinary punctuation intact.
+      name = name.replace(/[<>:"/\\|?*\u0000-\u001F\u007F]/g, '');
+      name = name.replace(/[. ]+$/g, '');
+
+      // Avoid doubled or mismatched export extensions when users type one themselves.
+      name = name.replace(/\.(?:svg|png|webp)$/i, '');
+      name = name.replace(/[. ]+$/g, '');
+
+      // Dot entries and Windows device names are not portable filenames.
+      const reserved = /^(?:\.{1,2}|con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+      if (!name || reserved.test(name)) return FILE_BASENAME;
+      return [...name].slice(0, 180).join('');
     }
 
     function downloadBlob(blob, filename) {
@@ -3365,7 +3524,7 @@
 
     function exportSvg() {
       const source = elements.svgInput.value;
-      downloadBlob(new Blob([source], { type: 'image/svg+xml;charset=utf-8' }), `${FILE_BASENAME}.svg`);
+      downloadBlob(new Blob([source], { type: 'image/svg+xml;charset=utf-8' }), `${filenameBase()}.svg`);
     }
 
     async function exportBitmap(format) {
@@ -3393,7 +3552,7 @@
         const quality = format === 'png' ? undefined : 0.92;
         const blob = await new Promise((resolve) => canvas.toBlob(resolve, mime, quality));
         if (!blob || blob.type !== mime) throw new Error(t('unsupportedBitmap'));
-        downloadBlob(blob, `${FILE_BASENAME}.${format}`);
+        downloadBlob(blob, `${filenameBase()}.${format}`);
       } finally {
         URL.revokeObjectURL(sourceUrl);
       }
@@ -3448,6 +3607,20 @@
       elements.fileInput.value = '';
     });
     elements.formatButton.addEventListener('click', formatCurrentSvg);
+    elements.demoSelect.addEventListener('change', () => {
+      const key = elements.demoSelect.value;
+      const source = demoSource(key);
+      if (!source) return;
+
+      elements.svgInput.value = source;
+      elements.filenameInput.value = key;
+      elements.svgInput.scrollTop = 0;
+      elements.svgInput.selectionStart = elements.svgInput.selectionEnd = 0;
+      elements.demoSelect.value = '';
+      updateLineNumbers();
+      renderSvg({ fit: true });
+      elements.svgInput.focus();
+    });
     elements.shareButton.addEventListener('click', copyShareText);
     elements.aboutButton.addEventListener('click', () => elements.aboutDialog.showModal());
     elements.aboutCloseButton.addEventListener('click', () => elements.aboutDialog.close());
@@ -3536,11 +3709,13 @@
     });
 
     // Build the language dropdown from whichever TRANSLATIONS entries remain in source,
-    // then initialize from the browser language and load the embedded sample.
+    // then initialize from the browser language with a blank editor. The embedded
+    // Ghostscript Tiger remains available through the Demo menu.
     elements.versionText.textContent = ` v${APP_VERSION}`;
     populateLanguageSelect();
     applyLocale(resolveInitialLocale());
-    elements.svgInput.value = document.querySelector('#defaultSvgSource').textContent.trim();
+    elements.svgInput.value = '';
+    elements.filenameInput.value = '';
     updateLineNumbers();
     renderSvg({ fit: true });
   </script>
